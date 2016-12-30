@@ -75,7 +75,7 @@ class MultiWii:
         self.ser.bytesize = serial.EIGHTBITS
         self.ser.parity = serial.PARITY_NONE
         self.ser.stopbits = serial.STOPBITS_ONE
-        self.ser.timeout = None # wait forever / until requested number of bytes are received
+        self.ser.timeout = 3
         self.ser.xonxoff = False
         self.ser.rtscts = False
         self.ser.dsrdtr = False
@@ -86,17 +86,18 @@ class MultiWii:
             self.ser.open()
             if self.PRINT:
                 print "Waking up board on "+self.ser.port+"..."
-            for i in range(1,wakeup):
-                if self.PRINT:
-                    print wakeup-i
-                    time.sleep(1)
-                else:
-                    time.sleep(1)
+	    time.sleep(2)
+#            for i in range(1,wakeup):
+#                if self.PRINT:
+#                    print wakeup-i
+#                    time.sleep(1)
+#                else:
+#                    time.sleep(1)
         except Exception, error:
             print "\n\nError opening "+self.ser.port+" port.\n"+str(error)+"\n\n"
 
     def disconnect(self):
-        print "disconnecting..."
+        print "disconnecting from " +self.ser.port+ "..."
 	self.ser.flushInput()
 	self.ser.flushOutput()
 	self.ser.read(self.ser.inWaiting())
@@ -193,19 +194,28 @@ class MultiWii:
             timer = timer + (time.time() - start)
             start =  time.time()
 
+    def readWithTimeout(self, numBytes):
+	val = self.ser.read(numBytes)
+	if len(val) < numBytes:
+		raise serial.SerialTimeoutException("timeout")
+	#print val
+	return val
+
     """Function to receive a data packet from the board"""
     def getData(self, cmd):
-        try:
+        #try:
             start = time.time()
             self.sendCMD(0,cmd,[])
             while True:
-                header = self.ser.read()
+                header = self.readWithTimeout(1)
                 if header == '$':
-                    header = header+self.ser.read(2)
+                    header = header+self.readWithTimeout(2)
                     break
-            datalength = struct.unpack('<b', self.ser.read())[0]
-            code = struct.unpack('<b', self.ser.read())
-            data = self.ser.read(datalength)
+            datalength = struct.unpack('<b', self.readWithTimeout(1))[0]
+	    #print datalength
+            code = struct.unpack('<b', self.readWithTimeout(1))
+	    #print code
+            data = self.readWithTimeout(datalength)
             temp = struct.unpack('<'+'h'*(datalength/2),data)
             self.ser.flushInput()
             self.ser.flushOutput()
@@ -245,9 +255,9 @@ class MultiWii:
                 return self.motor
             else:
                 return "No return error!"
-        except Exception, error:
-            #print error
-            pass
+        #except Exception, error:
+        #    #print error
+        #    pass
 
     """Function to receive a data packet from the board. Note: easier to use on threads"""
     def getDataInf(self, cmd):
